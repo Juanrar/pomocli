@@ -2,7 +2,9 @@
 package ui
 
 import (
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -43,11 +45,14 @@ type Model struct {
 	cursor        int // índice en store.Today(now())
 	input         textinput.Model
 	status        string // mensaje de una línea; se borra con la siguiente tecla
+	audioWarning  string // aviso de audio; las teclas no lo borran
+	scroll        int    // primera tarea visible en la lista
 
 	activeTaskID string
 	focusStart   time.Time
 	tickID       int
 	ringUntil    time.Time
+	ringID       int
 	confirmQuit  bool
 }
 
@@ -55,23 +60,60 @@ func New(st *store.Store, cfg cycle.Config, al alarm.Player, now func() time.Tim
 	in := textinput.New()
 	in.Prompt = ""
 	in.CharLimit = 200
-	return Model{
-		store:  st,
-		cycle:  cycle.New(cfg),
-		alarm:  al,
-		now:    now,
-		width:  defaultWidth,
-		input:  in,
-		status: status,
+	m := Model{
+		store:        st,
+		cycle:        cycle.New(cfg),
+		alarm:        al,
+		now:          now,
+		width:        defaultWidth,
+		input:        in,
+		audioWarning: status,
 	}
+	m.setInputWidth()
+	return m
+}
+
+// setInputWidth deja que el prompt más el texto entren en el ancho de la terminal.
+func (m *Model) setInputWidth() {
+	m.input.SetWidth(max(m.viewWidth()-len(" Nueva tarea: ")-3, 5))
+}
+
+// cmdKey devuelve la tecla para comparar comandos; las letras van en minúscula
+// para que Caps Lock no rompa los atajos.
+func cmdKey(msg tea.KeyPressMsg) string {
+	s := msg.String()
+	if utf8.RuneCountInString(s) == 1 {
+		return strings.ToLower(s)
+	}
+	return s
+}
+
+func (m Model) warningLine(w int) string {
+	if m.audioWarning == "" {
+		return ""
+	}
+	return warnStyle.Render(truncate(m.audioWarning, max(w, 1)))
 }
 
 func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	nm := next.(Model)
+	nm.fixScroll()
+	return nm, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m.setInputWidth()
+		return m, nil
+	case ringEndedMsg:
+		if msg.id == m.ringID {
+			m.ringUntil = time.Time{}
+		}
 		return m, nil
 	case tickMsg:
 		return m.handleTick(msg)

@@ -37,7 +37,7 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.updateConfirm(msg)
 	}
 	cur, ok := m.current()
-	key := msg.String()
+	key := cmdKey(msg)
 	switch key {
 	case "up", "k":
 		if m.cursor > 0 {
@@ -135,7 +135,7 @@ func (m Model) updateInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch cmdKey(msg) {
 	case "s":
 		if cur, ok := m.current(); ok {
 			if err := m.store.Delete(cur.ID); err != nil {
@@ -167,8 +167,15 @@ func (m Model) viewList() string {
 	if len(tasks) == 0 {
 		b.WriteString(" No hay tareas. Apretá a para agregar una.\n")
 	}
-	for i, t := range tasks {
-		b.WriteString(m.taskLine(t, i == m.cursor, w) + "\n")
+	start, end := m.window()
+	if start > 0 {
+		b.WriteString(" " + faintStyle.Render(fmt.Sprintf("↑ %d más", start)) + "\n")
+	}
+	for i := start; i < end; i++ {
+		b.WriteString(m.taskLine(tasks[i], i == m.cursor, w) + "\n")
+	}
+	if end < len(tasks) {
+		b.WriteString(" " + faintStyle.Render(fmt.Sprintf("↓ %d más", len(tasks)-end)) + "\n")
 	}
 	b.WriteString(rule(w) + "\n")
 
@@ -188,6 +195,9 @@ func (m Model) viewList() string {
 	}
 	if m.status != "" {
 		b.WriteString(" " + truncate(m.status, w-2) + "\n")
+	}
+	if wl := m.warningLine(w - 2); wl != "" {
+		b.WriteString(" " + wl + "\n")
 	}
 	b.WriteString(" " + faintStyle.Render("enter foco  a agregar  e editar  +/- estimación  d hecha") + "\n")
 	b.WriteString(" " + faintStyle.Render("x borrar  r resumen  q salir"))
@@ -230,4 +240,56 @@ func (m Model) taskLine(t store.Task, selected bool, w int) string {
 		line = faintStyle.Render(line)
 	}
 	return line
+}
+
+// fixedLines cuenta las líneas de la lista que no son filas de tareas:
+// encabezado, dos reglas, input o confirmación, estado, aviso y ayuda.
+func (m Model) fixedLines() int {
+	n := 3 + 2
+	switch m.mode {
+	case listAdding, listEditing:
+		n += 2
+	case listConfirmDelete:
+		n++
+	}
+	if m.status != "" {
+		n++
+	}
+	if m.audioWarning != "" {
+		n++
+	}
+	return n
+}
+
+// window devuelve el rango de tareas [start, end) que entra en pantalla,
+// con el cursor adentro. Cuando hay filas ocultas, los indicadores "↑ N más"
+// y "↓ N más" ocupan una línea cada uno.
+func (m Model) window() (start, end int) {
+	n := len(m.tasks())
+	avail := m.height - m.fixedLines()
+	if m.height <= 0 || n <= avail {
+		return 0, n
+	}
+	v := max(avail-2, 1)
+	start = max(min(m.scroll, n-v), 0)
+	if m.cursor < start {
+		start = m.cursor
+	}
+	if m.cursor >= start+v {
+		start = m.cursor - v + 1
+	}
+	end = min(start+v, n)
+	if start == 0 {
+		end = min(v+1, n)
+	}
+	if end == n && start > 0 {
+		start = max(n-(v+1), 0)
+	}
+	return start, end
+}
+
+// fixScroll guarda el inicio de la ventana para que siga al cursor.
+func (m *Model) fixScroll() {
+	m.clampCursor()
+	m.scroll, _ = m.window()
 }

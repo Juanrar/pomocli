@@ -37,6 +37,9 @@ func parseConfig(args []string) (cycle.Config, error) {
 	if err := fs.Parse(args); err != nil {
 		return cycle.Config{}, err
 	}
+	if fs.NArg() > 0 {
+		return cycle.Config{}, fmt.Errorf("argumento inesperado %q; usá -focus, -short, -long y -every", fs.Arg(0))
+	}
 	if cfg.Focus <= 0 || cfg.Short <= 0 || cfg.Long <= 0 || cfg.Every < 1 {
 		return cycle.Config{}, errors.New(errInvalidConfig)
 	}
@@ -78,7 +81,7 @@ func main() {
 	al, err := alarm.New()
 	status := ""
 	if err != nil {
-		status = fmt.Sprintf("Sin audio (%v). Uso el bell de la terminal.", err)
+		status = fmt.Sprintf("Sin audio (%v). Uso el bell de la terminal. Conectá los auriculares y reiniciá pomocli.", err)
 	}
 
 	if _, err := tea.NewProgram(ui.New(st, cfg, al, time.Now, status)).Run(); err != nil {

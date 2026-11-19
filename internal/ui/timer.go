@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -19,10 +20,49 @@ type tickMsg struct{ id int }
 
 const ringingLine = "Alarma sonando: apretá cualquier tecla para silenciarla"
 
+type ringEndedMsg struct{ id int }
+
 var (
-	focusDigits = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6347"))
-	breakDigits = lipgloss.NewStyle().Foreground(lipgloss.Color("#3CB371"))
+	digitBody   = lipgloss.NewStyle().Foreground(lipgloss.Color("#E0E0E0"))
+	digitShadow = lipgloss.NewStyle().Foreground(lipgloss.Color("#6C6C6C"))
+	focusPhase  = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6347"))
+	breakPhase  = lipgloss.NewStyle().Foreground(lipgloss.Color("#3CB371"))
 )
+
+// colorBig pinta el cuerpo (█) y la sombra (caja) de los dígitos grandes.
+// Los espacios quedan sin estilo.
+func colorBig(big string, faint bool) string {
+	body, shadow := digitBody.Faint(faint), digitShadow.Faint(faint)
+	var b, run strings.Builder
+	kind := 0 // 0 espacio, 1 cuerpo, 2 sombra
+	flush := func() {
+		switch kind {
+		case 1:
+			b.WriteString(body.Render(run.String()))
+		case 2:
+			b.WriteString(shadow.Render(run.String()))
+		default:
+			b.WriteString(run.String())
+		}
+		run.Reset()
+	}
+	for _, r := range big {
+		k := 2
+		switch r {
+		case ' ', '\n':
+			k = 0
+		case '█':
+			k = 1
+		}
+		if k != kind {
+			flush()
+			kind = k
+		}
+		run.WriteRune(r)
+	}
+	flush()
+	return b.String()
+}
 
 func (m Model) tickCmd() tea.Cmd {
 	id := m.tickID
@@ -46,9 +86,13 @@ func (m Model) startFocus(id string) (Model, tea.Cmd) {
 
 func (m Model) ringing() bool { return m.now().Before(m.ringUntil) }
 
-func (m *Model) startRinging() {
+// startRinging arranca la alarma y devuelve el comando que avisa cuando se corta sola.
+func (m *Model) startRinging() tea.Cmd {
 	m.alarm.Start()
 	m.ringUntil = m.now().Add(alarm.MaxRing)
+	m.ringID++
+	id := m.ringID
+	return tea.Tick(alarm.MaxRing, func(time.Time) tea.Msg { return ringEndedMsg{id: id} })
 }
 
 func (m Model) isBreak() bool {
@@ -74,12 +118,12 @@ func (m Model) handleTick(msg tickMsg) (tea.Model, tea.Cmd) {
 			m.fail(err)
 		}
 		m.confirmQuit = false
-		m.startRinging()
-		return m, m.tickCmd()
+		ring := m.startRinging()
+		return m, tea.Batch(m.tickCmd(), ring)
 	case cycle.BreakCompleted:
-		m.startRinging()
+		ring := m.startRinging()
 		m.screen = screenWaiting
-		return m, nil
+		return m, ring
 	}
 	switch m.cycle.Phase() {
 	case cycle.Focus, cycle.ShortBreak, cycle.LongBreak:
@@ -104,7 +148,7 @@ func (m *Model) togglePause(now time.Time) {
 }
 
 func (m Model) updateTimer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	key := msg.String()
+	key := cmdKey(msg)
 	now := m.now()
 	if m.isBreak() {
 		switch key {
@@ -141,7 +185,7 @@ func (m Model) updateTimer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateWaiting(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch cmdKey(msg) {
 	case "enter":
 		return m.startFocus(m.activeTaskID)
 	case "d":
@@ -182,20 +226,19 @@ func (m Model) viewTimer() string {
 	secs := int(math.Ceil(m.cycle.Remaining(m.now()).Seconds()))
 	text := fmt.Sprintf("%02d:%02d", secs/60, secs%60)
 
-	style := focusDigits
+	phaseStyle := focusPhase
 	if m.isBreak() {
-		style = breakDigits
-	}
-	if m.cycle.Paused() {
-		style = style.Faint(true)
+		phaseStyle = breakPhase
 	}
 	digits := text
-	if big := BigDigits(text); m.viewWidth() >= lipgloss.Width(big)+4 && m.height >= 12 {
-		digits = big
+	if m.viewWidth() >= bigDigitsW+4 && m.height >= 13 {
+		digits = colorBig(BigDigits(text), m.cycle.Paused())
+	} else if m.cycle.Paused() {
+		digits = faintStyle.Render(text)
 	}
-	lines := []string{style.Render(digits)}
+	lines := []string{digits}
 	if m.cycle.Paused() {
-		lines = append(lines, style.Bold(true).Render("PAUSA"))
+		lines = append(lines, lipgloss.NewStyle().Bold(true).Render("PAUSA"))
 	}
 	lines = append(lines, "")
 
@@ -207,12 +250,15 @@ func (m Model) viewTimer() string {
 	case cycle.LongBreak:
 		phase, footer = "Descanso largo", "espacio pausa  s saltar  esc lista  q salir"
 	}
-	lines = append(lines, truncate(m.activeTitle(), max(m.viewWidth()-4, 1)), phase, m.progressLine(), "")
+	lines = append(lines, truncate(m.activeTitle(), max(m.viewWidth()-4, 1)), phaseStyle.Render(phase), m.progressLine(), "")
 	if m.ringing() {
 		lines = append(lines, ringingLine)
 	}
 	if m.status != "" {
 		lines = append(lines, truncate(m.status, max(m.viewWidth()-4, 1)))
+	}
+	if w := m.warningLine(m.viewWidth() - 4); w != "" {
+		lines = append(lines, w)
 	}
 	if m.confirmQuit {
 		lines = append(lines, "¿Salir? El foco en curso se pierde. (s/n)")
@@ -236,6 +282,9 @@ func (m Model) viewWaiting() string {
 	}
 	if m.status != "" {
 		lines = append(lines, truncate(m.status, max(m.viewWidth()-4, 1)))
+	}
+	if w := m.warningLine(m.viewWidth() - 4); w != "" {
+		lines = append(lines, w)
 	}
 	lines = append(lines, faintStyle.Render("enter siguiente foco  d tarea hecha  esc lista  q salir"))
 	return m.place(lines...)

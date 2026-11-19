@@ -120,8 +120,8 @@ func TestBreakCompletionWaits(t *testing.T) {
 	if fa(m).starts != 2 {
 		t.Errorf("starts = %d", fa(m).starts)
 	}
-	if cmd != nil {
-		t.Error("cmd should be nil")
+	if cmd == nil {
+		t.Error("falta el comando que avisa el fin de la alarma")
 	}
 	if c := content(m); !contains(c, "Próximo: Foco 2 de 4") {
 		t.Errorf("content:\n%s", c)

@@ -9,7 +9,7 @@ import (
 )
 
 func (m Model) updateSummary(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	switch cmdKey(msg) {
 	case "esc":
 		m.screen = screenList
 	case "ctrl+c":

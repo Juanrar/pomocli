@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +38,15 @@ func TestParseConfigInvalid(t *testing.T) {
 	} {
 		if _, err := parseConfig(args); err == nil {
 			t.Errorf("parseConfig(%v) no devolvió error", args)
+		}
+	}
+}
+
+func TestParseConfigPositionalArg(t *testing.T) {
+	for _, args := range [][]string{{"foo"}, {"-focus", "10m", "extra"}} {
+		_, err := parseConfig(args)
+		if err == nil || !strings.Contains(err.Error(), "argumento inesperado") {
+			t.Errorf("parseConfig(%v) = %v", args, err)
 		}
 	}
 }
