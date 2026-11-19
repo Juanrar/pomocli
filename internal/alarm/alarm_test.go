@@ -44,26 +44,48 @@ func TestPatternAmplitude(t *testing.T) {
 			if v < 0 {
 				v = -v
 			}
-			if v > 0.25 {
-				t.Fatalf("muestra %v supera 0.25", v)
+			if v > 0.125 {
+				t.Fatalf("muestra %v supera 0.125", v)
 			}
 			if v > max {
 				max = v
 			}
 		}
 	}
-	if max <= 0.2 {
-		t.Fatalf("pico %v, quiero > 0.2", max)
+	if max <= 0.1 {
+		t.Fatalf("pico %v, quiero > 0.1", max)
 	}
 }
 
-func TestPatternSilenceGap(t *testing.T) {
+// El arpegio: 4 notas de 110 ms que arrancan cada 120 ms, después silencio hasta 1,2 s.
+func TestPatternArpeggioNotesAndSilence(t *testing.T) {
 	all := readAll(t, 3*time.Second)
-	for i := 7056; i <= 10584; i++ {
-		if all[i] != [2]float64{} {
-			t.Fatalf("muestra %d no es silencio: %v", i, all[i])
+	at := func(ms int) int { return SampleRate.N(time.Duration(ms) * time.Millisecond) }
+
+	for k, mid := range []int{55, 175, 295, 415} {
+		loud := false
+		for i := at(mid - 20); i < at(mid+20); i++ {
+			if all[i][0] != 0 {
+				loud = true
+				break
+			}
+		}
+		if !loud {
+			t.Fatalf("la nota %d (alrededor de %d ms) no suena", k+1, mid)
 		}
 	}
+
+	silent := func(fromMs, toMs int) {
+		t.Helper()
+		for i := at(fromMs); i < at(toMs); i++ {
+			if all[i] != [2]float64{} {
+				t.Fatalf("muestra %d (entre %d y %d ms) no es silencio: %v", i, fromMs, toMs, all[i])
+			}
+		}
+	}
+	silent(111, 119)   // hueco entre la primera y la segunda nota
+	silent(471, 1199)  // silencio después de la última nota
+	silent(1671, 2399) // el ciclo se repite cada 1,2 s
 }
 
 type syncBuf struct {

@@ -19,15 +19,17 @@ const (
 	MaxRing = 60 * time.Second
 	// SampleRate es la frecuencia de muestreo del parlante.
 	SampleRate beep.SampleRate = 44100
-	// Amplitude es la amplitud de la senoidal (0 a 1).
-	Amplitude = 0.25
+	// Amplitude es el pico de la onda (0 a 1). Es bajo a propósito: se escucha con auriculares.
+	Amplitude = 0.125
 
-	toneHz   = 880.0
-	toneLen  = 150 * time.Millisecond
-	gapLen   = 100 * time.Millisecond
-	cycleLen = time.Second
+	noteLen  = 110 * time.Millisecond
+	noteStep = 120 * time.Millisecond
+	cycleLen = 1200 * time.Millisecond
 	rampLen  = 5 * time.Millisecond
 )
+
+// arpeggioHz son las notas del arpegio ascendente: do, mi, sol y do agudo.
+var arpeggioHz = [...]float64{523.25, 659.25, 783.99, 1046.5}
 
 // Player controla la alarma.
 type Player interface {
@@ -153,33 +155,30 @@ func New() (Player, error) {
 var errNoDevice = errors.New("no hay dispositivo de salida de audio")
 
 // pattern devuelve la alarma: un streamer finito de duración total d.
-// Ciclo de 1 s: tono 150 ms, silencio 100 ms, tono 150 ms, silencio 600 ms.
+// Ciclo de 1,2 s: cuatro notas de 110 ms en onda triangular que arrancan cada
+// 120 ms (do, mi, sol, do agudo) y después silencio hasta completar el ciclo.
 func pattern(sr beep.SampleRate, d time.Duration) beep.Streamer {
 	total := sr.N(d)
 	cycle := sr.N(cycleLen)
-	tone := sr.N(toneLen)
-	gap := sr.N(gapLen)
+	note := sr.N(noteLen)
+	step := sr.N(noteStep)
 	ramp := sr.N(rampLen)
 	pos := 0
 
 	value := func(i int) float64 {
 		c := i % cycle
-		var t int // índice dentro del tono
-		switch {
-		case c < tone:
-			t = c
-		case c >= tone+gap && c < 2*tone+gap:
-			t = c - tone - gap
-		default:
+		k := c / step // número de nota dentro del ciclo
+		t := c - k*step
+		if k >= len(arpeggioHz) || t >= note {
 			return 0
 		}
 		env := 1.0
 		if t < ramp {
 			env = float64(t) / float64(ramp)
-		} else if t >= tone-ramp {
-			env = float64(tone-1-t) / float64(ramp)
+		} else if t >= note-ramp {
+			env = float64(note-1-t) / float64(ramp)
 		}
-		return Amplitude * env * math.Sin(2*math.Pi*toneHz*float64(i)/float64(sr))
+		return Amplitude * env * triangle(arpeggioHz[k]*float64(t)/float64(sr))
 	}
 
 	return beep.StreamerFunc(func(samples [][2]float64) (int, bool) {
@@ -195,4 +194,9 @@ func pattern(sr beep.SampleRate, d time.Duration) beep.Streamer {
 		}
 		return n, true
 	})
+}
+
+// triangle es una onda triangular entre -1 y 1; p es la fase medida en ciclos.
+func triangle(p float64) float64 {
+	return 2*math.Abs(2*(p-math.Floor(p+0.5))) - 1
 }
