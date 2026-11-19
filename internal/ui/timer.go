@@ -73,6 +73,7 @@ func (m Model) handleTick(msg tickMsg) (tea.Model, tea.Cmd) {
 		if err != nil {
 			m.fail(err)
 		}
+		m.confirmQuit = false
 		m.startRinging()
 		return m, m.tickCmd()
 	case cycle.BreakCompleted:
@@ -210,6 +211,9 @@ func (m Model) viewTimer() string {
 	if m.ringing() {
 		lines = append(lines, ringingLine)
 	}
+	if m.status != "" {
+		lines = append(lines, truncate(m.status, max(m.viewWidth()-4, 1)))
+	}
 	if m.confirmQuit {
 		lines = append(lines, "¿Salir? El foco en curso se pierde. (s/n)")
 	} else {
@@ -229,6 +233,9 @@ func (m Model) viewWaiting() string {
 	}
 	if m.ringing() {
 		lines = append(lines, ringingLine)
+	}
+	if m.status != "" {
+		lines = append(lines, truncate(m.status, max(m.viewWidth()-4, 1)))
 	}
 	lines = append(lines, faintStyle.Render("enter siguiente foco  d tarea hecha  esc lista  q salir"))
 	return m.place(lines...)

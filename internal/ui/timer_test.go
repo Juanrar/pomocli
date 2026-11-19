@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -222,5 +224,37 @@ func TestSmallTerminalPlainTime(t *testing.T) {
 	m, _ = send(m, tea.WindowSizeMsg{Width: 20, Height: 8})
 	if c := content(m); !contains(c, "25:00") {
 		t.Errorf("content:\n%s", c)
+	}
+}
+
+func TestTimerShowsSaveError(t *testing.T) {
+	m, st, now, _ := startFocus(t, "Leer")
+	dir := filepath.Dir(st.Path())
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = completeFocus(m, now)
+	if c := content(m); !contains(c, "No se pudo guardar:") {
+		t.Errorf("content:\n%s", c)
+	}
+}
+
+func TestConfirmQuitClearedWhenFocusEnds(t *testing.T) {
+	m, _, now, _ := startFocus(t, "Leer")
+	m = press(m, key("q"))
+	m = completeFocus(m, now)
+	if c := content(m); contains(c, "¿Salir?") {
+		t.Errorf("prompt still shown:\n%s", c)
+	}
+	m = press(m, key("s"))
+	m, cmd := send(m, key("s"))
+	if cmd != nil {
+		t.Error("second s should not quit")
+	}
+	if m.screen != screenWaiting {
+		t.Errorf("screen = %v", m.screen)
 	}
 }
