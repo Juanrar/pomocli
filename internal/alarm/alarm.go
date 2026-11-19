@@ -2,9 +2,12 @@
 package alarm
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gopxl/beep/v2"
@@ -34,29 +37,120 @@ type Player interface {
 	Stop()
 }
 
-type speakerPlayer struct{}
+// speakerPlayer toca el patrón por el parlante. El parlante queda suspendido
+// cuando no suena, para no bloquear el sueño de Windows con un stream abierto.
+type speakerPlayer struct {
+	mu  sync.Mutex
+	gen int // cambia en cada Start y Stop; un Suspend viejo no corta un timbre nuevo
+}
 
-func (speakerPlayer) Start() {
+func (p *speakerPlayer) Start() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.gen++
+	g := p.gen
+	_ = speaker.Resume()
 	speaker.Clear()
-	speaker.Play(pattern(SampleRate, MaxRing))
+	speaker.Play(beep.Seq(pattern(SampleRate, MaxRing), beep.Callback(func() {
+		// En otra goroutine: el parlante tiene su lock tomado dentro del callback.
+		go func() {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			if p.gen == g {
+				_ = speaker.Suspend()
+			}
+		}()
+	})))
 }
 
-func (speakerPlayer) Stop() { speaker.Clear() }
+func (p *speakerPlayer) Stop() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.gen++
+	speaker.Clear()
+	_ = speaker.Suspend()
+}
 
-// bellPlayer es el respaldo cuando no hay audio: manda BEL a la terminal.
-type bellPlayer struct{}
+// bellPlayer es el respaldo cuando no hay audio: manda BEL a la terminal
+// una vez por intervalo hasta Stop o hasta maxRing.
+type bellPlayer struct {
+	w        io.Writer
+	interval time.Duration
+	maxRing  time.Duration
 
-func (bellPlayer) Start() { fmt.Fprint(os.Stdout, "\a") }
-func (bellPlayer) Stop()  {}
+	mu   sync.Mutex
+	stop chan struct{} // nil si no suena
+}
 
-// New inicializa el parlante y devuelve un Player de audio. Si falla,
-// devuelve un Player de respaldo (campana de terminal) junto con el error.
-func New() (Player, error) {
-	if err := speaker.Init(SampleRate, SampleRate.N(100*time.Millisecond)); err != nil {
-		return bellPlayer{}, err
+func newBellPlayer() *bellPlayer {
+	return &bellPlayer{w: os.Stdout, interval: time.Second, maxRing: MaxRing}
+}
+
+func (b *bellPlayer) Start() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.stop != nil {
+		close(b.stop)
 	}
-	return speakerPlayer{}, nil
+	stop := make(chan struct{})
+	b.stop = stop
+	go b.run(stop)
 }
+
+func (b *bellPlayer) run(stop chan struct{}) {
+	deadline := time.NewTimer(b.maxRing)
+	defer deadline.Stop()
+	tick := time.NewTicker(b.interval)
+	defer tick.Stop()
+	b.ring(stop)
+	for {
+		select {
+		case <-stop:
+			return
+		case <-deadline.C:
+			return
+		case <-tick.C:
+			b.ring(stop)
+		}
+	}
+}
+
+// ring escribe BEL salvo que ya se haya pedido Stop.
+func (b *bellPlayer) ring(stop chan struct{}) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	select {
+	case <-stop:
+		return
+	default:
+	}
+	fmt.Fprint(b.w, "")
+}
+
+func (b *bellPlayer) Stop() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.stop != nil {
+		close(b.stop)
+		b.stop = nil
+	}
+}
+
+// New inicializa el parlante y devuelve un Player de audio. Si falla o no hay
+// dispositivo de salida, devuelve un Player de respaldo (campana de terminal)
+// junto con el error.
+func New() (Player, error) {
+	if !hasOutputDevice() {
+		return newBellPlayer(), errNoDevice
+	}
+	if err := speaker.Init(SampleRate, SampleRate.N(100*time.Millisecond)); err != nil {
+		return newBellPlayer(), err
+	}
+	_ = speaker.Suspend()
+	return &speakerPlayer{}, nil
+}
+
+var errNoDevice = errors.New("no hay dispositivo de salida de audio")
 
 // pattern devuelve la alarma: un streamer finito de duración total d.
 // Ciclo de 1 s: tono 150 ms, silencio 100 ms, tono 150 ms, silencio 600 ms.

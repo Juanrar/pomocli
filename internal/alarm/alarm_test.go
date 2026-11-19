@@ -1,6 +1,8 @@
 package alarm
 
 import (
+	"bytes"
+	"sync"
 	"testing"
 	"time"
 )
@@ -61,5 +63,56 @@ func TestPatternSilenceGap(t *testing.T) {
 		if all[i] != [2]float64{} {
 			t.Fatalf("muestra %d no es silencio: %v", i, all[i])
 		}
+	}
+}
+
+type syncBuf struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuf) len() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Len()
+}
+
+func TestBellRepeatsAndStops(t *testing.T) {
+	buf := &syncBuf{}
+	b := &bellPlayer{w: buf, interval: 10 * time.Millisecond, maxRing: time.Minute}
+	b.Stop() // no-op sin sonar
+	b.Start()
+	time.Sleep(100 * time.Millisecond)
+	if n := buf.len(); n < 3 {
+		t.Fatalf("BEL escritos = %d, quiero al menos 3", n)
+	}
+	b.Stop()
+	time.Sleep(30 * time.Millisecond)
+	n := buf.len()
+	time.Sleep(60 * time.Millisecond)
+	if buf.len() != n {
+		t.Fatalf("siguió escribiendo después de Stop")
+	}
+}
+
+func TestBellRestartAndMaxRing(t *testing.T) {
+	buf := &syncBuf{}
+	b := &bellPlayer{w: buf, interval: 10 * time.Millisecond, maxRing: 50 * time.Millisecond}
+	b.Start()
+	b.Start() // reinicia, no duplica
+	time.Sleep(150 * time.Millisecond)
+	n := buf.len()
+	time.Sleep(60 * time.Millisecond)
+	if buf.len() != n {
+		t.Fatalf("siguió escribiendo después de maxRing")
+	}
+	if n == 0 {
+		t.Fatal("no sonó")
 	}
 }

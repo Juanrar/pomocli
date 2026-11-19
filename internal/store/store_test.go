@@ -44,6 +44,11 @@ func TestOpenCreatesFile(t *testing.T) {
 	if !strings.Contains(string(b), `"version": 1`) {
 		t.Fatalf("contenido inesperado: %s", b)
 	}
+	for _, want := range []string{`"tasks": []`, `"pomodoros": []`} {
+		if !strings.Contains(string(b), want) {
+			t.Fatalf("falta %s en: %s", want, b)
+		}
+	}
 }
 
 func TestOpenCorruptNotOverwritten(t *testing.T) {

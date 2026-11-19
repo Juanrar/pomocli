@@ -78,7 +78,7 @@ func Open(path string) (*Store, error) {
 	b, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		s.data = Data{Version: 1}
+		s.data = Data{Version: 1, Tasks: []Task{}, Pomodoros: []Pomodoro{}}
 		if err := s.save(); err != nil {
 			return nil, err
 		}
@@ -262,6 +262,10 @@ func (s *Store) save() (err error) {
 		}
 	}()
 	if _, err = tmp.Write(b); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err = tmp.Sync(); err != nil {
 		tmp.Close()
 		return err
 	}
