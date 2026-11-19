@@ -50,12 +50,22 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		m.mode = listAdding
 		m.input.Reset()
-		return m, m.input.Focus()
+		cmd := m.input.Focus()
+		return m, cmd
 	case "e":
 		if ok {
 			m.mode = listEditing
 			m.input.SetValue(cur.Title)
-			return m, m.input.Focus()
+			cmd := m.input.Focus()
+			return m, cmd
+		}
+	case "enter":
+		if ok {
+			if cur.Done {
+				m.status = "Esa tarea ya está hecha."
+				return m, nil
+			}
+			return m.startFocus(cur.ID)
 		}
 	case "+", "-":
 		if ok {

@@ -43,6 +43,12 @@ type Model struct {
 	cursor        int // índice en store.Today(now())
 	input         textinput.Model
 	status        string // mensaje de una línea; se borra con la siguiente tecla
+
+	activeTaskID string
+	focusStart   time.Time
+	tickID       int
+	ringUntil    time.Time
+	confirmQuit  bool
 }
 
 func New(st *store.Store, cfg cycle.Config, al alarm.Player, now func() time.Time, status string) Model {
@@ -67,12 +73,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
+	case tickMsg:
+		return m.handleTick(msg)
 	case tea.KeyPressMsg:
+		if m.ringing() {
+			m.alarm.Stop()
+			m.ringUntil = time.Time{}
+			return m, nil
+		}
 		m.status = ""
-		if m.screen == screenSummary {
+		switch m.screen {
+		case screenSummary:
 			return m.updateSummary(msg)
+		case screenTimer:
+			return m.updateTimer(msg)
+		case screenWaiting:
+			return m.updateWaiting(msg)
 		}
 		return m.updateList(msg)
+	}
+	if m.screen == screenList && (m.mode == listAdding || m.mode == listEditing) {
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }
@@ -82,6 +105,10 @@ func (m Model) View() tea.View {
 	switch m.screen {
 	case screenSummary:
 		s = m.viewSummary()
+	case screenTimer:
+		s = m.viewTimer()
+	case screenWaiting:
+		s = m.viewWaiting()
 	default:
 		s = m.viewList()
 	}
