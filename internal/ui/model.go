@@ -73,9 +73,9 @@ func New(st *store.Store, cfg cycle.Config, al alarm.Player, now func() time.Tim
 	return m
 }
 
-// setInputWidth deja que el prompt más el texto entren en el ancho de la terminal.
+// setInputWidth deja que el prompt más el texto entren en el bloque central de la lista.
 func (m *Model) setInputWidth() {
-	m.input.SetWidth(max(m.viewWidth()-len(" Nueva tarea: ")-3, 5))
+	m.input.SetWidth(max(m.contentWidth()-len("Nueva tarea: ")-3, 5))
 }
 
 // cmdKey devuelve la tecla para comparar comandos; las letras van en minúscula

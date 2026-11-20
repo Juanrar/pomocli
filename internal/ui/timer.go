@@ -22,6 +22,12 @@ const ringingLine = "Alarma sonando: apretá cualquier tecla para silenciarla"
 
 type ringEndedMsg struct{ id int }
 
+// Ayudas de la pantalla de foco y de descanso, como pares tecla-acción.
+var (
+	focusFooter = [][2]string{{"espacio", "pausa"}, {"esc", "cancelar"}, {"q", "salir"}}
+	breakFooter = [][2]string{{"espacio", "pausa"}, {"s", "saltar"}, {"esc", "lista"}, {"q", "salir"}}
+)
+
 var (
 	digitBody   = lipgloss.NewStyle().Foreground(lipgloss.Color("#E0E0E0"))
 	digitShadow = lipgloss.NewStyle().Foreground(lipgloss.Color("#6C6C6C"))
@@ -193,7 +199,7 @@ func (m Model) updateWaiting(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.fail(err)
 		}
 		m = m.toList()
-		m.clampCursor()
+		m.cursorTo(m.activeTaskID)
 	case "esc":
 		m = m.toList()
 	case "q", "ctrl+c":
@@ -243,12 +249,12 @@ func (m Model) viewTimer() string {
 	lines = append(lines, "")
 
 	phase := fmt.Sprintf("Foco %d de %d", m.cycle.Position(), m.cycle.Config().Every)
-	footer := "espacio pausa  esc cancelar  q salir"
+	footer := focusFooter
 	switch m.cycle.Phase() {
 	case cycle.ShortBreak:
-		phase, footer = "Descanso corto", "espacio pausa  s saltar  esc lista  q salir"
+		phase, footer = "Descanso corto", breakFooter
 	case cycle.LongBreak:
-		phase, footer = "Descanso largo", "espacio pausa  s saltar  esc lista  q salir"
+		phase, footer = "Descanso largo", breakFooter
 	}
 	lines = append(lines, truncate(m.activeTitle(), max(m.viewWidth()-4, 1)), phaseStyle.Render(phase), m.progressLine(), "")
 	if m.ringing() {
@@ -263,7 +269,7 @@ func (m Model) viewTimer() string {
 	if m.confirmQuit {
 		lines = append(lines, "¿Salir? El foco en curso se pierde. (s/n)")
 	} else {
-		lines = append(lines, faintStyle.Render(footer))
+		lines = append(lines, keyHelp(footer...))
 	}
 	return m.place(lines...)
 }
@@ -286,6 +292,7 @@ func (m Model) viewWaiting() string {
 	if w := m.warningLine(m.viewWidth() - 4); w != "" {
 		lines = append(lines, w)
 	}
-	lines = append(lines, faintStyle.Render("enter siguiente foco  d tarea hecha  esc lista  q salir"))
+	lines = append(lines, keyHelp([2]string{"enter", "siguiente foco"}, [2]string{"d", "tarea hecha"},
+		[2]string{"esc", "lista"}, [2]string{"q", "salir"}))
 	return m.place(lines...)
 }

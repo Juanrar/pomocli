@@ -10,7 +10,38 @@ import (
 	"github.com/Juanrar/pomocli/internal/store"
 )
 
-func (m Model) tasks() []store.Task { return m.store.Today(m.now()) }
+// maxContentW es el ancho del bloque central de la lista.
+const maxContentW = 64
+
+// tasks devuelve las tareas de hoy: primero las pendientes y después las hechas,
+// cada grupo en su orden original.
+func (m Model) tasks() []store.Task {
+	all := m.store.Today(m.now())
+	out := make([]store.Task, 0, len(all))
+	for _, t := range all {
+		if !t.Done {
+			out = append(out, t)
+		}
+	}
+	for _, t := range all {
+		if t.Done {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// sections cuenta las tareas pendientes y las hechas de hoy.
+func (m Model) sections() (pending, done int) {
+	for _, t := range m.tasks() {
+		if t.Done {
+			done++
+		} else {
+			pending++
+		}
+	}
+	return pending, done
+}
 
 // current devuelve la tarea bajo el cursor, si hay.
 func (m Model) current() (store.Task, bool) {
@@ -24,6 +55,19 @@ func (m Model) current() (store.Task, bool) {
 func (m *Model) clampCursor() {
 	m.cursor = max(min(m.cursor, len(m.tasks())-1), 0)
 }
+
+// cursorTo pone el cursor sobre la tarea id, si sigue en la lista de hoy.
+func (m *Model) cursorTo(id string) {
+	for i, t := range m.tasks() {
+		if t.ID == id {
+			m.cursor = i
+		}
+	}
+	m.clampCursor()
+}
+
+// contentWidth devuelve el ancho del bloque central.
+func (m Model) contentWidth() int { return min(m.viewWidth(), maxContentW) }
 
 func (m *Model) fail(err error) {
 	m.status = fmt.Sprintf("No se pudo guardar: %v", err)
@@ -82,6 +126,7 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			if err := m.store.SetDone(cur.ID, !cur.Done, m.now()); err != nil {
 				m.fail(err)
 			}
+			m.cursorTo(cur.ID)
 		}
 	case "x":
 		if ok {
@@ -153,55 +198,106 @@ func (m Model) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) viewList() string {
-	w := m.viewWidth()
+	w := m.contentWidth()
 	now := m.now()
-	var b strings.Builder
-
-	left := " " + titleStyle.Render("pomocli") + "   Hoy, " + formatDay(now)
-	right := faintStyle.Render(formatDayTotals(m.store.DaySummary(now))) + " "
-	gap := max(w-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	b.WriteString(left + strings.Repeat(" ", gap) + right + "\n")
-	b.WriteString(rule(w) + "\n")
-
 	tasks := m.tasks()
+	pending, done := m.sections()
+	var b strings.Builder
+	line := func(s string) {
+		b.WriteString(lipgloss.PlaceHorizontal(w, lipgloss.Center, s) + "\n")
+	}
+	rule := faintStyle.Render(strings.Repeat("─", w)) + "\n"
+
+	line(titleStyle.Render("pomocli") + "   Hoy, " + formatDay(now))
+	b.WriteString(rule)
+	line(m.dayBar(w))
+	b.WriteString(rule)
+
 	if len(tasks) == 0 {
-		b.WriteString(" No hay tareas. Apretá a para agregar una.\n")
+		line("No hay tareas. Apretá a para agregar una.")
 	}
 	start, end := m.window()
 	if start > 0 {
-		b.WriteString(" " + faintStyle.Render(fmt.Sprintf("↑ %d más", start)) + "\n")
+		line(faintStyle.Render(fmt.Sprintf("↑ %d más", start)))
 	}
 	for i := start; i < end; i++ {
+		if i == 0 || i == pending {
+			label, n := "Pendientes", pending
+			if i >= pending {
+				label, n = "Hechas", done
+			}
+			b.WriteString(sectionHeader(label, n, w) + "\n")
+		}
 		b.WriteString(m.taskLine(tasks[i], i == m.cursor, w) + "\n")
 	}
 	if end < len(tasks) {
-		b.WriteString(" " + faintStyle.Render(fmt.Sprintf("↓ %d más", len(tasks)-end)) + "\n")
+		line(faintStyle.Render(fmt.Sprintf("↓ %d más", len(tasks)-end)))
 	}
-	b.WriteString(rule(w) + "\n")
+	b.WriteString(rule)
 
 	switch m.mode {
 	case listAdding:
-		b.WriteString(" Nueva tarea: " + m.input.View() + "\n")
-		b.WriteString(" " + faintStyle.Render("enter guardar  esc cancelar") + "\n")
+		line("Nueva tarea: " + m.input.View())
+		line(faintStyle.Render("enter guardar  esc cancelar"))
 	case listEditing:
-		b.WriteString(" Editar: " + m.input.View() + "\n")
-		b.WriteString(" " + faintStyle.Render("enter guardar  esc cancelar") + "\n")
+		line("Editar: " + m.input.View())
+		line(faintStyle.Render("enter guardar  esc cancelar"))
 	case listConfirmDelete:
 		title := ""
 		if cur, ok := m.current(); ok {
 			title = cur.Title
 		}
-		b.WriteString(" " + truncate(`¿Borrar "`+title+`"? (s/n)`, w-2) + "\n")
+		line(truncate(`¿Borrar "`+title+`"? (s/n)`, w-2))
 	}
 	if m.status != "" {
-		b.WriteString(" " + truncate(m.status, w-2) + "\n")
+		line(truncate(m.status, w-2))
 	}
 	if wl := m.warningLine(w - 2); wl != "" {
-		b.WriteString(" " + wl + "\n")
+		line(wl)
 	}
-	b.WriteString(" " + faintStyle.Render("enter foco  a agregar  e editar  +/- estimación  d hecha") + "\n")
-	b.WriteString(" " + faintStyle.Render("x borrar  r resumen  q salir"))
-	return b.String()
+	line(keyHelp([2]string{"enter", "foco"}, [2]string{"a", "agregar"}, [2]string{"e", "editar"},
+		[2]string{"+/-", "estimación"}, [2]string{"d", "hecha"}))
+	line(keyHelp([2]string{"x", "borrar"}, [2]string{"r", "resumen"}, [2]string{"q", "salir"}))
+	return lipgloss.Place(m.viewWidth(), m.height, lipgloss.Center, lipgloss.Center,
+		strings.TrimSuffix(b.String(), "\n"))
+}
+
+// keyHelp dibuja pares tecla-acción: la tecla en color y la acción en tenue.
+func keyHelp(pairs ...[2]string) string {
+	parts := make([]string, len(pairs))
+	for i, p := range pairs {
+		parts[i] = keyStyle.Render(p[0]) + " " + faintStyle.Render(p[1])
+	}
+	return strings.Join(parts, "   ")
+}
+
+// dayBar dibuja el avance del día: pomodoros hechos sobre la estimación total
+// de las tareas de hoy, y el tiempo de foco.
+func (m Model) dayBar(w int) string {
+	now := m.now()
+	sum := m.store.DaySummary(now)
+	total := 0
+	for _, t := range m.tasks() {
+		total += t.Estimate
+	}
+	const barW = 24
+	filled := 0
+	count := fmt.Sprintf("%d pomodoros · %d min", sum.Count, sum.FocusMinutes)
+	if total > 0 {
+		filled = min(sum.Count*barW/total, barW)
+		count = fmt.Sprintf("%d de %d pomodoros · %d min", sum.Count, total, sum.FocusMinutes)
+	}
+	bar := doneDot.Render(strings.Repeat("▓", filled)) +
+		faintStyle.Render(strings.Repeat("░", barW-filled))
+	return truncate("Día  "+bar+"  "+count, w)
+}
+
+// sectionHeader dibuja el título de una sección con su cantidad a la derecha.
+func sectionHeader(label string, n, w int) string {
+	left := "   " + lipgloss.NewStyle().Bold(true).Render(label)
+	right := faintStyle.Render(fmt.Sprint(n)) + " "
+	gap := max(w-lipgloss.Width(left)-lipgloss.Width(right), 1)
+	return left + strings.Repeat(" ", gap) + right
 }
 
 func (m Model) taskLine(t store.Task, selected bool, w int) string {
@@ -243,9 +339,10 @@ func (m Model) taskLine(t store.Task, selected bool, w int) string {
 }
 
 // fixedLines cuenta las líneas de la lista que no son filas de tareas:
-// encabezado, dos reglas, input o confirmación, estado, aviso y ayuda.
+// título, barra del día, reglas, encabezados de sección, input o confirmación,
+// estado, aviso y ayuda.
 func (m Model) fixedLines() int {
-	n := 3 + 2
+	n := 4 + 1 + 2 + m.headerLines()
 	switch m.mode {
 	case listAdding, listEditing:
 		n += 2
@@ -256,6 +353,19 @@ func (m Model) fixedLines() int {
 		n++
 	}
 	if m.audioWarning != "" {
+		n++
+	}
+	return n
+}
+
+// headerLines cuenta los encabezados de sección: uno por sección con tareas.
+func (m Model) headerLines() int {
+	p, d := m.sections()
+	n := 0
+	if p > 0 {
+		n++
+	}
+	if d > 0 {
 		n++
 	}
 	return n

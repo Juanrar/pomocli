@@ -14,8 +14,10 @@ import (
 var (
 	colorAccent = lipgloss.Color("#FF6347")
 	colorExtra  = lipgloss.Color("#FFD700")
+	colorKey    = lipgloss.Color("#5FB3FF")
 
 	titleStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+	keyStyle   = lipgloss.NewStyle().Foreground(colorKey).Bold(true)
 	doneDot    = lipgloss.NewStyle().Foreground(colorAccent)
 	extraDot   = lipgloss.NewStyle().Foreground(colorExtra)
 	faintStyle = lipgloss.NewStyle().Faint(true)

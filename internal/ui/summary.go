@@ -34,6 +34,6 @@ func (m Model) viewSummary() string {
 	}
 	b.WriteString(rule(w) + "\n")
 	b.WriteString(" " + formatDayTotals(sum) + "\n")
-	b.WriteString(" " + faintStyle.Render("esc volver"))
+	b.WriteString(" " + keyHelp([2]string{"esc", "volver"}))
 	return b.String()
 }
