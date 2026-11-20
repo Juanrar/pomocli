@@ -11,8 +11,9 @@ var (
 )
 
 func TestDefaultConfig(t *testing.T) {
-	if DefaultConfig() != cfg {
-		t.Fatalf("DefaultConfig() = %+v, quiero %+v", DefaultConfig(), cfg)
+	want := Config{Focus: 50 * time.Minute, Short: 10 * time.Minute, Long: 10 * time.Minute, Every: 4}
+	if DefaultConfig() != want {
+		t.Fatalf("DefaultConfig() = %+v, quiero %+v", DefaultConfig(), want)
 	}
 }
 

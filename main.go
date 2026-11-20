@@ -46,6 +46,34 @@ func parseConfig(args []string) (cycle.Config, error) {
 	return cfg, nil
 }
 
+// explicitFlags devuelve los flags de duración que aparecen en args.
+func explicitFlags(args []string) map[string]bool {
+	var cfg cycle.Config
+	fs := newFlagSet(&cfg)
+	set := map[string]bool{}
+	if fs.Parse(args) == nil {
+		fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	}
+	return set
+}
+
+// withFlagOverrides aplica sobre base solo los valores que el usuario pasó como flag.
+func withFlagOverrides(base, flags cycle.Config, set map[string]bool) cycle.Config {
+	if set["focus"] {
+		base.Focus = flags.Focus
+	}
+	if set["short"] {
+		base.Short = flags.Short
+	}
+	if set["long"] {
+		base.Long = flags.Long
+	}
+	if set["every"] {
+		base.Every = flags.Every
+	}
+	return base
+}
+
 func main() {
 	cfg, err := parseConfig(os.Args[1:])
 	if err != nil {
@@ -77,6 +105,7 @@ func main() {
 		}
 		os.Exit(1)
 	}
+	cfg = withFlagOverrides(ui.LoadConfig(st), cfg, explicitFlags(os.Args[1:]))
 
 	al, err := alarm.New()
 	status := ""

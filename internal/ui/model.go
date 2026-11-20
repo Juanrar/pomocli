@@ -21,6 +21,7 @@ const (
 	screenTimer
 	screenWaiting
 	screenSummary
+	screenSettings
 )
 
 type listMode int
@@ -35,18 +36,19 @@ const (
 const defaultWidth = 80
 
 type Model struct {
-	store         *store.Store
-	cycle         *cycle.Cycle
-	alarm         alarm.Player
-	now           func() time.Time
-	width, height int
-	screen        screen
-	mode          listMode
-	cursor        int // índice en store.Today(now())
-	input         textinput.Model
-	status        string // mensaje de una línea; se borra con la siguiente tecla
-	audioWarning  string // aviso de audio; las teclas no lo borran
-	scroll        int    // primera tarea visible en la lista
+	store          *store.Store
+	cycle          *cycle.Cycle
+	alarm          alarm.Player
+	now            func() time.Time
+	width, height  int
+	screen         screen
+	mode           listMode
+	cursor         int // índice en store.Today(now())
+	input          textinput.Model
+	status         string // mensaje de una línea; se borra con la siguiente tecla
+	audioWarning   string // aviso de audio; las teclas no lo borran
+	scroll         int    // primera tarea visible en la lista
+	settingsCursor int    // fila elegida en la pantalla de configuración
 
 	activeTaskID string
 	focusStart   time.Time
@@ -127,6 +129,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.screen {
 		case screenSummary:
 			return m.updateSummary(msg)
+		case screenSettings:
+			return m.updateSettings(msg)
 		case screenTimer:
 			return m.updateTimer(msg)
 		case screenWaiting:
@@ -147,6 +151,8 @@ func (m Model) View() tea.View {
 	switch m.screen {
 	case screenSummary:
 		s = m.viewSummary()
+	case screenSettings:
+		s = m.viewSettings()
 	case screenTimer:
 		s = m.viewTimer()
 	case screenWaiting:

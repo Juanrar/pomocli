@@ -34,6 +34,15 @@ type Data struct {
 	Version   int        `json:"version"`
 	Tasks     []Task     `json:"tasks"`
 	Pomodoros []Pomodoro `json:"pomodoros"`
+	Settings  *Settings  `json:"settings,omitempty"`
+}
+
+// Settings guarda las duraciones elegidas en la pantalla de configuración.
+type Settings struct {
+	FocusSeconds int `json:"focusSeconds"`
+	ShortSeconds int `json:"shortSeconds"`
+	LongSeconds  int `json:"longSeconds"`
+	Every        int `json:"every"`
 }
 
 type TaskCount struct {
@@ -273,4 +282,18 @@ func (s *Store) save() (err error) {
 		return err
 	}
 	return os.Rename(name, s.path)
+}
+
+// Settings devuelve la configuración guardada. El bool es false si nunca se guardó.
+func (s *Store) Settings() (Settings, bool) {
+	if s.data.Settings == nil {
+		return Settings{}, false
+	}
+	return *s.data.Settings, true
+}
+
+// SetSettings guarda la configuración y escribe el archivo.
+func (s *Store) SetSettings(v Settings) error {
+	s.data.Settings = &v
+	return s.save()
 }
