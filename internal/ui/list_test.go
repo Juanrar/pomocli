@@ -166,7 +166,7 @@ func TestToggleDone(t *testing.T) {
 	m, st, now := newTestModel(t)
 	addTask(t, st, *now, "Leer")
 	m = press(m, key("d"))
-	if c := content(m); !strings.Contains(c, "[x] Leer") {
+	if c := content(m); !strings.Contains(c, "[✓] Leer") {
 		t.Errorf("content:\n%s", c)
 	}
 	m = press(m, key("d"))
