@@ -219,3 +219,22 @@ func TestListScrollAfterDelete(t *testing.T) {
 		t.Errorf("después de borrar:\n%s", c)
 	}
 }
+
+func TestFocusMsgSilencesAlarm(t *testing.T) {
+	m, _ := ringingWaiting(t)
+	m, _ = send(m, tea.FocusMsg{})
+	if m.ringing() || fa(m).stops == 0 {
+		t.Fatalf("el foco de la ventana no cortó la alarma: ringing=%v stops=%d", m.ringing(), fa(m).stops)
+	}
+	if contains(content(m), ringingLine) {
+		t.Fatalf("la línea de alarma sigue:\n%s", content(m))
+	}
+}
+
+func TestFocusMsgWithoutRingIsNoop(t *testing.T) {
+	m, _, _ := newTestModel(t)
+	m, _ = send(m, tea.FocusMsg{})
+	if fa(m).stops != 0 || m.screen != screenList {
+		t.Fatalf("stops=%d screen=%v", fa(m).stops, m.screen)
+	}
+}

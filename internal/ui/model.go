@@ -117,12 +117,17 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ringUntil = time.Time{}
 		}
 		return m, nil
+	case tea.FocusMsg:
+		// Clicar la ventana de la terminal silencia la alarma, igual que una tecla.
+		if m.ringing() {
+			m.silence()
+		}
+		return m, nil
 	case tickMsg:
 		return m.handleTick(msg)
 	case tea.KeyPressMsg:
 		if m.ringing() {
-			m.alarm.Stop()
-			m.ringUntil = time.Time{}
+			m.silence()
 			return m, nil
 		}
 		m.status = ""
@@ -162,7 +167,14 @@ func (m Model) View() tea.View {
 	}
 	v := tea.NewView(s)
 	v.AltScreen = true
+	v.ReportFocus = true
 	return v
+}
+
+// silence corta la alarma que suena.
+func (m *Model) silence() {
+	m.alarm.Stop()
+	m.ringUntil = time.Time{}
 }
 
 func (m Model) viewWidth() int {

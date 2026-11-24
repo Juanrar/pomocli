@@ -90,7 +90,7 @@ Al agregar o editar, `enter` confirma y `esc` cancela.
 | `esc` | Volver a la lista |
 | `ctrl+c` | Salir |
 
-Mientras suena la alarma, cualquier tecla la silencia. La alarma se corta sola a los 60 segundos.
+Mientras suena la alarma, cualquier tecla o hacer clic en la ventana de la terminal la silencia. La alarma se corta sola a los 60 segundos.
 
 Si no hay dispositivo de audio al abrir pomocli, usa el bell de la terminal y muestra un aviso. Conectá los auriculares antes de abrirlo.
 

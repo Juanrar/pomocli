@@ -18,7 +18,7 @@ const tickInterval = 250 * time.Millisecond
 
 type tickMsg struct{ id int }
 
-const ringingLine = "Alarma sonando: apretá cualquier tecla para silenciarla"
+const ringingLine = "Alarma sonando: apretá una tecla o clicá la ventana para silenciarla"
 
 type ringEndedMsg struct{ id int }
 
