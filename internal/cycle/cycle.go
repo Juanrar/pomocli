@@ -21,9 +21,9 @@ type Config struct {
 	Every              int // focos por descanso largo
 }
 
-// DefaultConfig devuelve 25m de foco, 5m y 15m de descanso, descanso largo cada 4 focos.
+// DefaultConfig devuelve 50m de foco, 10m de descanso corto y 10m de descanso largo, descanso largo cada 4 focos.
 func DefaultConfig() Config {
-	return Config{Focus: 25 * time.Minute, Short: 5 * time.Minute, Long: 15 * time.Minute, Every: 4}
+	return Config{Focus: 50 * time.Minute, Short: 10 * time.Minute, Long: 10 * time.Minute, Every: 4}
 }
 
 type Event int

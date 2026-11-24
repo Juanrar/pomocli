@@ -30,9 +30,9 @@ func startFocus(t *testing.T, title string) (Model, *store.Store, *time.Time, st
 	return m, st, now, task
 }
 
-// completeFocus avanza 25 minutos y entrega el tick vigente.
+// completeFocus avanza 50 minutos y entrega el tick vigente.
 func completeFocus(m Model, now *time.Time) Model {
-	*now = now.Add(25 * time.Minute)
+	*now = now.Add(50 * time.Minute)
 	m, _ = send(m, tickMsg{id: m.tickID})
 	return m
 }
@@ -78,7 +78,7 @@ func TestFocusCompletionSavesAndRings(t *testing.T) {
 	if got := st.Progress(task.ID); got != 1 {
 		t.Errorf("progress = %d", got)
 	}
-	if got := st.DaySummary(*now).FocusMinutes; got != 25 {
+	if got := st.DaySummary(*now).FocusMinutes; got != 50 {
 		t.Errorf("minutes = %d", got)
 	}
 	if fa(m).starts != 1 {
@@ -112,7 +112,7 @@ func TestBreakCompletionWaits(t *testing.T) {
 	m, _, now, _ := startFocus(t, "Leer")
 	m = completeFocus(m, now)
 	m = press(m, key("x"))
-	*now = now.Add(5 * time.Minute)
+	*now = now.Add(10 * time.Minute)
 	m, cmd := send(m, tickMsg{id: m.tickID})
 	if m.screen != screenWaiting {
 		t.Fatalf("screen = %v", m.screen)
@@ -170,7 +170,7 @@ func TestStaleTickIgnored(t *testing.T) {
 	if m.tickID != 2 {
 		t.Fatalf("tickID = %d", m.tickID)
 	}
-	*now = now.Add(25 * time.Minute)
+	*now = now.Add(50 * time.Minute)
 	m, cmd := send(m, tickMsg{id: 1})
 	if cmd != nil || st.Progress(task.ID) != 0 {
 		t.Errorf("stale tick acted: cmd=%v progress=%d", cmd, st.Progress(task.ID))
@@ -222,7 +222,7 @@ func TestQuitDuringFocusConfirms(t *testing.T) {
 func TestSmallTerminalPlainTime(t *testing.T) {
 	m, _, _, _ := startFocus(t, "Leer")
 	m, _ = send(m, tea.WindowSizeMsg{Width: 20, Height: 8})
-	if c := content(m); !contains(c, "25:00") {
+	if c := content(m); !contains(c, "50:00") {
 		t.Errorf("content:\n%s", c)
 	}
 }

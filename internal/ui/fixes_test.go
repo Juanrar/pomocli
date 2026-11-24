@@ -57,7 +57,7 @@ func ringingWaiting(t *testing.T) (Model, *time.Time) {
 	m, _, now, _ := startFocus(t, "Leer")
 	m = completeFocus(m, now)
 	m = press(m, key("x")) // silencia la alarma del foco
-	*now = now.Add(5 * time.Minute)
+	*now = now.Add(10 * time.Minute)
 	m, _ = send(m, tickMsg{id: m.tickID})
 	if m.screen != screenWaiting || !m.ringing() {
 		t.Fatalf("screen=%v ringing=%v", m.screen, m.ringing())
@@ -91,7 +91,7 @@ func TestRingEndedStaleIDIgnored(t *testing.T) {
 
 func TestAlarmStartReturnsRingEndTick(t *testing.T) {
 	m, _, now, _ := startFocus(t, "Leer")
-	*now = now.Add(25 * time.Minute)
+	*now = now.Add(50 * time.Minute)
 	m, cmd := send(m, tickMsg{id: m.tickID})
 	if cmd == nil || m.ringID == 0 {
 		t.Fatalf("cmd=%v ringID=%d", cmd, m.ringID)
@@ -217,5 +217,24 @@ func TestListScrollAfterDelete(t *testing.T) {
 	c := content(m)
 	if !contains(c, "Tarea 29") || len(strings.Split(c, "\n")) > 20 {
 		t.Errorf("después de borrar:\n%s", c)
+	}
+}
+
+func TestFocusMsgSilencesAlarm(t *testing.T) {
+	m, _ := ringingWaiting(t)
+	m, _ = send(m, tea.FocusMsg{})
+	if m.ringing() || fa(m).stops == 0 {
+		t.Fatalf("el foco de la ventana no cortó la alarma: ringing=%v stops=%d", m.ringing(), fa(m).stops)
+	}
+	if contains(content(m), ringingLine) {
+		t.Fatalf("la línea de alarma sigue:\n%s", content(m))
+	}
+}
+
+func TestFocusMsgWithoutRingIsNoop(t *testing.T) {
+	m, _, _ := newTestModel(t)
+	m, _ = send(m, tea.FocusMsg{})
+	if fa(m).stops != 0 || m.screen != screenList {
+		t.Fatalf("stops=%d screen=%v", fa(m).stops, m.screen)
 	}
 }

@@ -21,6 +21,7 @@ const (
 	screenTimer
 	screenWaiting
 	screenSummary
+	screenSettings
 )
 
 type listMode int
@@ -35,18 +36,19 @@ const (
 const defaultWidth = 80
 
 type Model struct {
-	store         *store.Store
-	cycle         *cycle.Cycle
-	alarm         alarm.Player
-	now           func() time.Time
-	width, height int
-	screen        screen
-	mode          listMode
-	cursor        int // índice en store.Today(now())
-	input         textinput.Model
-	status        string // mensaje de una línea; se borra con la siguiente tecla
-	audioWarning  string // aviso de audio; las teclas no lo borran
-	scroll        int    // primera tarea visible en la lista
+	store          *store.Store
+	cycle          *cycle.Cycle
+	alarm          alarm.Player
+	now            func() time.Time
+	width, height  int
+	screen         screen
+	mode           listMode
+	cursor         int // índice en store.Today(now())
+	input          textinput.Model
+	status         string // mensaje de una línea; se borra con la siguiente tecla
+	audioWarning   string // aviso de audio; las teclas no lo borran
+	scroll         int    // primera tarea visible en la lista
+	settingsCursor int    // fila elegida en la pantalla de configuración
 
 	activeTaskID string
 	focusStart   time.Time
@@ -115,18 +117,25 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ringUntil = time.Time{}
 		}
 		return m, nil
+	case tea.FocusMsg:
+		// Clicar la ventana de la terminal silencia la alarma, igual que una tecla.
+		if m.ringing() {
+			m.silence()
+		}
+		return m, nil
 	case tickMsg:
 		return m.handleTick(msg)
 	case tea.KeyPressMsg:
 		if m.ringing() {
-			m.alarm.Stop()
-			m.ringUntil = time.Time{}
+			m.silence()
 			return m, nil
 		}
 		m.status = ""
 		switch m.screen {
 		case screenSummary:
 			return m.updateSummary(msg)
+		case screenSettings:
+			return m.updateSettings(msg)
 		case screenTimer:
 			return m.updateTimer(msg)
 		case screenWaiting:
@@ -147,6 +156,8 @@ func (m Model) View() tea.View {
 	switch m.screen {
 	case screenSummary:
 		s = m.viewSummary()
+	case screenSettings:
+		s = m.viewSettings()
 	case screenTimer:
 		s = m.viewTimer()
 	case screenWaiting:
@@ -156,7 +167,14 @@ func (m Model) View() tea.View {
 	}
 	v := tea.NewView(s)
 	v.AltScreen = true
+	v.ReportFocus = true
 	return v
+}
+
+// silence corta la alarma que suena.
+func (m *Model) silence() {
+	m.alarm.Stop()
+	m.ringUntil = time.Time{}
 }
 
 func (m Model) viewWidth() int {

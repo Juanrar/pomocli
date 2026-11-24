@@ -134,6 +134,9 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "r":
 		m.screen = screenSummary
+	case "c":
+		m.screen = screenSettings
+		m.settingsCursor = 0
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	}
@@ -257,7 +260,7 @@ func (m Model) viewList() string {
 	}
 	line(keyHelp([2]string{"enter", "foco"}, [2]string{"a", "agregar"}, [2]string{"e", "editar"},
 		[2]string{"+/-", "estimación"}, [2]string{"d", "hecha"}))
-	line(keyHelp([2]string{"x", "borrar"}, [2]string{"r", "resumen"}, [2]string{"q", "salir"}))
+	line(keyHelp([2]string{"x", "borrar"}, [2]string{"r", "resumen"}, [2]string{"c", "configurar"}, [2]string{"q", "salir"}))
 	return lipgloss.Place(m.viewWidth(), m.height, lipgloss.Center, lipgloss.Center,
 		strings.TrimSuffix(b.String(), "\n"))
 }

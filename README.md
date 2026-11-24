@@ -22,10 +22,12 @@ pomocli [flags]
 
 | Flag | Por defecto | Qué hace |
 |------|-------------|----------|
-| `-focus` | `25m` | Duración del foco |
-| `-short` | `5m` | Duración del descanso corto |
-| `-long` | `15m` | Duración del descanso largo |
+| `-focus` | `50m` | Duración del foco |
+| `-short` | `10m` | Duración del descanso corto |
+| `-long` | `10m` | Duración del descanso largo |
 | `-every` | `4` | Cantidad de focos antes de cada descanso largo |
+
+Los valores también se editan desde la pantalla de configuración (`c` en la lista). Se guardan en el mismo archivo de datos y se usan en las próximas sesiones. Un flag pasado en la línea de comandos gana sobre lo guardado, pero solo para esa ejecución y sin cambiar lo guardado.
 
 `-h` muestra la ayuda. pomocli no acepta argumentos sueltos, solo flags. Las duraciones usan el formato de Go (`90s`, `25m`, `1h`). Tienen que ser mayores que cero y `-every` tiene que ser al menos 1. Si no, el programa sale con código 2.
 
@@ -44,6 +46,7 @@ pomocli -focus 5s -short 3s -long 4s -every 2
 | `↑` / `k` | Subir |
 | `↓` / `j` | Bajar |
 | `a` | Agregar tarea |
+| `c` | Configurar duraciones (`↑↓` elegir, `←→` cambiar, `esc` volver) |
 | `e` | Editar el título |
 | `enter` | Empezar un foco sobre la tarea |
 | `+` / `-` | Subir o bajar la estimación de pomodoros |
@@ -87,7 +90,7 @@ Al agregar o editar, `enter` confirma y `esc` cancela.
 | `esc` | Volver a la lista |
 | `ctrl+c` | Salir |
 
-Mientras suena la alarma, cualquier tecla la silencia. La alarma se corta sola a los 60 segundos.
+Mientras suena la alarma, cualquier tecla o hacer clic en la ventana de la terminal la silencia. La alarma se corta sola a los 60 segundos.
 
 Si no hay dispositivo de audio al abrir pomocli, usa el bell de la terminal y muestra un aviso. Conectá los auriculares antes de abrirlo.
 
