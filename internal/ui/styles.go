@@ -22,6 +22,7 @@ var (
 	extraDot   = lipgloss.NewStyle().Foreground(colorExtra)
 	faintStyle = lipgloss.NewStyle().Faint(true)
 	warnStyle  = lipgloss.NewStyle().Foreground(colorExtra)
+	doneTaskStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5A5A5A"))
 )
 
 var months = [12]string{"ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"}

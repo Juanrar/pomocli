@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Juanrar/pomocli/internal/store"
 )
@@ -334,11 +335,13 @@ func (m Model) taskLine(t store.Task, selected bool, w int) string {
 	if since != "" {
 		mid += "  " + faintStyle.Render(since)
 	}
-	line := prefix + check + padRight(mid, avail) + " " + right
+	rest := check + padRight(mid, avail) + " " + right
 	if t.Done {
-		line = faintStyle.Render(line)
+		// Quita los colores de los puntos y de la fecha para que toda la
+		// línea quede en gris. El cursor queda sin estilo para seguir visible.
+		return prefix + doneTaskStyle.Render(ansi.Strip(rest))
 	}
-	return line
+	return prefix + rest
 }
 
 // fixedLines cuenta las líneas de la lista que no son filas de tareas:
