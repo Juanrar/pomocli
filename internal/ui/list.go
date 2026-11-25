@@ -310,7 +310,7 @@ func (m Model) taskLine(t store.Task, selected bool, w int) string {
 	}
 	check := "[ ] "
 	if t.Done {
-		check = "[x] "
+		check = "[√] "
 	}
 	progress := m.store.Progress(t.ID)
 	right := dots(progress, t.Estimate) + fmt.Sprintf("  %d/%d ", progress, t.Estimate)
